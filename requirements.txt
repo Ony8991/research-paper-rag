@@ -1,32 +1,31 @@
 # Core ML & Embeddings
-sentence-transformers==2.2.2
-torch==2.0.1
-numpy==1.24.3
+sentence-transformers==3.0.0
+torch>=2.0.0,<3.0.0
 
-# Vector Database
-chromadb==0.3.21
+# Vector Database 
+faiss-cpu>=1.8.0
 
 # LLM & Generation
-huggingface-hub==0.16.4
-requests==2.31.0
+huggingface-hub>=0.21.0
+requests>=2.31.0
 
 # API & Web
-fastapi==0.104.1
-uvicorn==0.24.0
-streamlit==1.28.1
+fastapi>=0.109.0
+uvicorn>=0.27.0
+streamlit>=1.31.0
 
 # PDF Processing
-pypdf==3.17.1
-pdfplumber==0.10.3
+pypdf>=4.0.0
+pdfplumber>=0.10.0
 
 # Data Processing
-pandas==2.1.1
-python-dotenv==1.0.0
+pandas>=2.0.0
+python-dotenv>=1.0.0
 
 # Utils
-tqdm==4.66.1
-python-multipart==0.0.6
+tqdm>=4.66.0
+python-multipart>=0.0.6
 
 # Testing (optional)
-pytest==7.4.2
-pytest-cov==4.1.0
+pytest>=7.4.0
+pytest-cov>=4.1.0
