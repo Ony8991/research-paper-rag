@@ -2,7 +2,7 @@
 
 A **Retrieval-Augmented Generation (RAG)** system for querying scientific papers and technical documentation. Ask questions in natural language and get AI-generated answers grounded in the source documents, with citations.
 
-**Live demo:** [Add your Streamlit Cloud URL here]
+**Live demo:** [research-paper-rag.streamlit.app](https://research-paper-rag-savqwycfhgjssq6hkdalrd.streamlit.app/)
 
 ---
 
