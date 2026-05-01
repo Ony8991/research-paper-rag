@@ -2,12 +2,14 @@ import os
 import sys
 from pathlib import Path
 
-# Inject Streamlit Cloud secrets into environment variables before loading the pipeline
+# Inject Streamlit Cloud secrets into os.environ before the pipeline is loaded.
+# st.secrets raises FileNotFoundError locally when no secrets.toml exists — that's fine.
 try:
     import streamlit as st
     for _key in ("GROQ_API_KEY", "HUGGINGFACE_API_KEY"):
-        if _key in st.secrets and not os.getenv(_key):
-            os.environ[_key] = st.secrets[_key]
+        val = st.secrets.get(_key)
+        if val and not os.getenv(_key):
+            os.environ[_key] = val
 except Exception:
     pass
 
