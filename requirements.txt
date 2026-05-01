@@ -1,31 +1,23 @@
-# Core ML & Embeddings
+# Embeddings
 sentence-transformers==3.0.0
 torch>=2.0.0,<3.0.0
 
-# Vector Database 
+# Vector store
 faiss-cpu>=1.8.0
 
-# LLM & Generation
+# LLM backends
 huggingface-hub>=0.21.0
 requests>=2.31.0
 
-# API & Web
+# PDF processing
+pypdf>=4.0.0
+
+# Web
+streamlit>=1.31.0
 fastapi>=0.109.0
 uvicorn>=0.27.0
-streamlit>=1.31.0
-
-# PDF Processing
-pypdf>=4.0.0
-pdfplumber>=0.10.0
-
-# Data Processing
-pandas>=2.0.0
-python-dotenv>=1.0.0
-
-# Utils
-tqdm>=4.66.0
 python-multipart>=0.0.6
 
-# Testing (optional)
-pytest>=7.4.0
-pytest-cov>=4.1.0
+# Utils
+python-dotenv>=1.0.0
+tqdm>=4.66.0
