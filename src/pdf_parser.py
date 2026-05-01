@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import pypdf
 import re
 
@@ -16,7 +16,7 @@ class PDFParser:
                     text += page.extract_text()
             return text
         except Exception as e:
-            print(f"❌ Erreur lecture PDF {pdf_path}: {e}")
+            print(f" Erreur lecture PDF {pdf_path}: {e}")
             return ""
     
     @staticmethod

@@ -1,34 +1,28 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Optional
 import sys
 from pathlib import Path
 
-# Ajouter src au path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.rag_pipeline import RAGPipeline
 
-# Initialiser app et pipeline
 app = FastAPI(
     title="Research Paper RAG API",
-    description="API pour rechercher dans les articles scientifiques et docs techniques",
-    version="0.1.0"
+    description="API pour rechercher et répondre sur des articles scientifiques",
+    version="0.2.0",
 )
 
-# Initialiser pipeline global
 pipeline = RAGPipeline()
-is_initialized = False
 
 
 class SearchRequest(BaseModel):
-    """Modèle pour une requête de recherche"""
     question: str
     n_results: int = 5
 
 
 class SearchResult(BaseModel):
-    """Modèle pour un résultat de recherche"""
     document: str
     similarity: float
     source: str
@@ -36,90 +30,89 @@ class SearchResult(BaseModel):
 
 
 class SearchResponse(BaseModel):
-    """Modèle pour une réponse de recherche"""
     results: List[SearchResult]
     total_results: int
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Au démarrage de l'API"""
-    global is_initialized
-    print("🚀 Initialisation du pipeline...")
-    is_initialized = True
+class AskResponse(BaseModel):
+    answer: Optional[str]
+    sources: List[SearchResult]
+    backend: str
 
 
 @app.get("/")
 async def root():
-    """Endpoint racine"""
     return {
         "message": "Research Paper RAG API",
         "docs": "/docs",
-        "status": "ready" if is_initialized else "initializing"
+        "status": pipeline.get_status(),
     }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
 
 
 @app.get("/status")
 async def status():
-    """Retourne le statut du système"""
     return pipeline.get_status()
 
 
-@app.post("/index", summary="Indexer les documents")
+@app.post("/index")
 async def index_documents():
-    """
-    Lance l'indexation des documents PDFs
-    """
     try:
         pipeline.index_documents()
-        return {"message": "Indexation lancée", "status": pipeline.get_status()}
+        return {"message": "Indexation terminée", "status": pipeline.get_status()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/search", response_model=SearchResponse, summary="Chercher dans les documents")
+@app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
     if not pipeline.get_status()["indexed"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Documents pas indexés. Appelez /index d'abord"
-        )
-    
+        raise HTTPException(status_code=400, detail="Documents pas indexés. Appelez /index d'abord")
     try:
         results = pipeline.search(request.question, n_results=request.n_results)
-        
-        # Formater résultats
-        formatted_results = [
+        formatted = [
             SearchResult(
                 document=doc,
-                similarity=similarity,
-                source=metadata.get("source", "unknown"),
-                chunk_id=metadata.get("chunk_id", 0)
+                similarity=sim,
+                source=meta.get("source", "unknown"),
+                chunk_id=meta.get("chunk_id", 0),
             )
-            for doc, similarity, metadata in results
+            for doc, sim, meta in results
         ]
-        
-        return SearchResponse(
-            results=formatted_results,
-            total_results=len(formatted_results)
-        )
-    
+        return SearchResponse(results=formatted, total_results=len(formatted))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}
+@app.post("/ask", response_model=AskResponse)
+async def ask(request: SearchRequest):
+    """Retrieval + génération : retourne une réponse synthétique avec ses sources."""
+    if not pipeline.get_status()["indexed"]:
+        raise HTTPException(status_code=400, detail="Documents pas indexés. Appelez /index d'abord")
+    try:
+        result = pipeline.ask(request.question, n_results=request.n_results)
+        sources = [
+            SearchResult(
+                document=doc,
+                similarity=sim,
+                source=meta.get("source", "unknown"),
+                chunk_id=meta.get("chunk_id", 0),
+            )
+            for doc, sim, meta in result["sources"]
+        ]
+        return AskResponse(
+            answer=result["answer"],
+            sources=sources,
+            backend=result["backend"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
     import uvicorn
-    
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

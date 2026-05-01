@@ -9,7 +9,7 @@ class Embedder:
     def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
         self.model_name = model_name
         self.model = SentenceTransformer(model_name)
-        print(f"✅ Modèle embedder chargé: {model_name}")
+        print(f"Modele embedder charge: {model_name}")
     
     def embed(self, text: Union[str, List[str]]) -> Union[np.ndarray, List[np.ndarray]]:
         if isinstance(text, str):

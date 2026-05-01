@@ -35,7 +35,7 @@ class VectorStore:
             self.index = faiss.read_index(self.index_path)
             with open(self.metadata_path, 'rb') as f:
                 self.metadata_store = pickle.load(f)
-            print(f"✅ Index FAISS chargé: {self.index_path}")
+            print(f"Index FAISS charge: {self.index_path}")
         else:
             # Créer nouvel index
             self.index = faiss.IndexFlatL2(dimension)  # L2 distance
@@ -44,7 +44,7 @@ class VectorStore:
                 "metadatas": [],
                 "ids": []
             }
-            print(f"✅ Nouvel index FAISS créé: {self.db_path}")
+            print(f" Nouvel index FAISS créé: {self.db_path}")
     
     def add_documents(
         self,
@@ -76,7 +76,7 @@ class VectorStore:
         # Sauvegarder
         self.persist()
         
-        print(f"✅ {len(documents)} documents ajoutés à l'index")
+        print(f" {len(documents)} documents ajoutés à l'index")
     
     def search(
         self,
@@ -137,7 +137,7 @@ class VectorStore:
             "ids": []
         }
         self.persist()
-        print(f"✅ Index vidé")
+        print(f" Index vidé")
     
     def persist(self) -> None:
         """Persiste les données sur disque"""
