@@ -36,19 +36,20 @@ wheels/
 *~
 .DS_Store
 
-# Chroma (Vector DB)
+# Vector DB legacy
 .chroma/
 chroma_data/
+data/chroma_db/
 
-# Streamlit
-.streamlit/
+# Streamlit — keep config.toml and secrets.toml.example, exclude actual secrets
+.streamlit/secrets.toml
 streamlit_cache/
 
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
 
-# data/documents/
+data/documents/
 
 # Logs
 *.log

@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
 import sys
 from pathlib import Path
+from typing import List, Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -10,7 +11,7 @@ from src.rag_pipeline import RAGPipeline
 
 app = FastAPI(
     title="Research Paper RAG API",
-    description="API pour rechercher et répondre sur des articles scientifiques",
+    description="Semantic search and Q&A over scientific papers",
     version="0.2.0",
 )
 
@@ -63,7 +64,7 @@ async def status():
 async def index_documents():
     try:
         pipeline.index_documents()
-        return {"message": "Indexation terminée", "status": pipeline.get_status()}
+        return {"message": "Indexing complete", "status": pipeline.get_status()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -71,7 +72,7 @@ async def index_documents():
 @app.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
     if not pipeline.get_status()["indexed"]:
-        raise HTTPException(status_code=400, detail="Documents pas indexés. Appelez /index d'abord")
+        raise HTTPException(status_code=400, detail="Index is empty. Call /index first.")
     try:
         results = pipeline.search(request.question, n_results=request.n_results)
         formatted = [
@@ -90,9 +91,9 @@ async def search(request: SearchRequest):
 
 @app.post("/ask", response_model=AskResponse)
 async def ask(request: SearchRequest):
-    """Retrieval + génération : retourne une réponse synthétique avec ses sources."""
+    """Retrieve relevant passages and generate a synthesized answer."""
     if not pipeline.get_status()["indexed"]:
-        raise HTTPException(status_code=400, detail="Documents pas indexés. Appelez /index d'abord")
+        raise HTTPException(status_code=400, detail="Index is empty. Call /index first.")
     try:
         result = pipeline.ask(request.question, n_results=request.n_results)
         sources = [

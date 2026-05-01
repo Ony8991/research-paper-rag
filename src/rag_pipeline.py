@@ -1,10 +1,12 @@
+import os
+import traceback
 from typing import List, Tuple, Dict, Optional
+
 from src.embedder import Embedder
 from src.vector_store import VectorStore
 from src.pdf_parser import PDFParser
 from src.generator import Generator
 from src.utils import get_pdf_files
-import os
 
 
 class RAGPipeline:
@@ -17,27 +19,27 @@ class RAGPipeline:
         self.embedder = Embedder(embedding_model)
         self.vector_store = VectorStore(db_path=db_path)
         self.generator = Generator()
-        # True si l'index a déjà des données (chargées depuis disque ou indexées)
+        # True if the index already has data (loaded from disk or freshly indexed)
         self.is_indexed = self.vector_store.index.ntotal > 0
-        print(f"Backend génération: {self.generator.backend}")
+        print(f"Generation backend: {self.generator.backend}")
 
     def index_documents(self) -> None:
-        print("Recherche des PDFs...")
+        print("Scanning for PDF files...")
         pdf_files = get_pdf_files()
 
         if not pdf_files:
-            print("Aucun PDF trouvé!")
+            print("No PDF files found.")
             return
 
-        print(f"{len(pdf_files)} PDFs trouvés")
+        print(f"{len(pdf_files)} PDF(s) found")
 
-        all_chunks = []
-        all_metadatas = []
-        all_ids = []
+        all_chunks: List[str] = []
+        all_metadatas: List[Dict] = []
+        all_ids: List[str] = []
         chunk_id = 0
 
-        for pdf_idx, pdf_path in enumerate(pdf_files):
-            print(f"\n[{pdf_idx + 1}/{len(pdf_files)}] {os.path.basename(pdf_path)}")
+        for idx, pdf_path in enumerate(pdf_files):
+            print(f"[{idx + 1}/{len(pdf_files)}] {os.path.basename(pdf_path)}")
             try:
                 chunks_with_metadata = PDFParser.parse_pdf_with_metadata(pdf_path)
                 for chunk_text, metadata in chunks_with_metadata:
@@ -46,15 +48,15 @@ class RAGPipeline:
                         all_metadatas.append(metadata)
                         all_ids.append(f"chunk_{chunk_id}")
                         chunk_id += 1
-                print(f"   {len(chunks_with_metadata)} chunks extraits")
+                print(f"   {len(chunks_with_metadata)} chunks extracted")
             except Exception as e:
-                print(f"   Erreur: {e}")
+                print(f"   Error processing {os.path.basename(pdf_path)}: {e}")
 
         if not all_chunks:
-            print("Aucun chunk n'a pu être créé!")
+            print("No chunks could be created.")
             return
 
-        print(f"\nCalcul des embeddings pour {len(all_chunks)} chunks...")
+        print(f"\nComputing embeddings for {len(all_chunks)} chunks...")
         all_embeddings = self.embedder.embed_batch(all_chunks)
 
         self.vector_store.add_documents(
@@ -64,11 +66,11 @@ class RAGPipeline:
             ids=all_ids,
         )
         self.is_indexed = True
-        print(f"\nTotal: {len(all_chunks)} chunks indexés")
+        print(f"Indexed {len(all_chunks)} chunks total.")
 
     def search(self, query: str, n_results: int = 5) -> List[Tuple[str, float, Dict]]:
         if not self.is_indexed:
-            print("Documents pas encore indexés! Appellez index_documents() d'abord")
+            print("Index is empty. Call index_documents() first.")
             return []
 
         query_embedding = self.embedder.embed(query)
@@ -78,13 +80,18 @@ class RAGPipeline:
         return list(zip(documents, similarities, metadatas))
 
     def ask(self, question: str, n_results: int = 5) -> Dict:
-        """Retrieval + génération : retourne une réponse avec ses sources."""
+        """Retrieval + generation: returns a synthesized answer with its sources."""
         results = self.search(question, n_results=n_results)
         if not results:
             return {"answer": None, "sources": [], "backend": self.generator.backend}
 
         context_chunks = [doc for doc, _, _ in results]
-        answer = self.generator.generate(question, context_chunks)
+        try:
+            answer = self.generator.generate(question, context_chunks)
+        except Exception as e:
+            print(f"Generation error ({type(e).__name__}): {e}")
+            traceback.print_exc()
+            answer = None
 
         return {
             "answer": answer,

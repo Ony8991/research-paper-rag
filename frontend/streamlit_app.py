@@ -1,9 +1,19 @@
-import streamlit as st
+import os
 import sys
 from pathlib import Path
 
+# Inject Streamlit Cloud secrets into environment variables before loading the pipeline
+try:
+    import streamlit as st
+    for _key in ("GROQ_API_KEY", "HUGGINGFACE_API_KEY"):
+        if _key in st.secrets and not os.getenv(_key):
+            os.environ[_key] = st.secrets[_key]
+except Exception:
+    pass
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import streamlit as st
 from src.rag_pipeline import RAGPipeline
 
 st.set_page_config(
@@ -26,10 +36,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📚 Research Paper RAG")
-st.markdown("*Moteur de recherche intelligent pour articles scientifiques et docs techniques*")
+st.markdown("*Intelligent search engine for scientific papers and technical documentation*")
 
 with st.sidebar:
-    st.header("⚙️ Configuration")
+    st.header("Configuration")
 
     @st.cache_resource
     def load_pipeline():
@@ -39,69 +49,79 @@ with st.sidebar:
     status = pipeline.get_status()
 
     if status["indexed"]:
-        st.success(f"Pipeline prêt ({status['documents_count']} chunks)")
+        st.success(f"Ready — {status['documents_count']} chunks indexed")
     else:
-        st.warning("⚠️ Documents pas encore indexés")
-        if st.button("🔄 Indexer documents"):
-            with st.spinner("Indexation en cours..."):
+        st.warning("Documents not yet indexed")
+        if st.button("Index documents"):
+            with st.spinner("Indexing in progress..."):
                 pipeline.index_documents()
-            st.success("Indexation terminée!")
+            st.success("Indexing complete!")
             st.rerun()
 
     st.divider()
 
     backend = status.get("generation_backend", "none")
     if backend == "none":
-        st.warning("⚠️ Aucun LLM disponible — mode recherche seule")
-        st.caption("Installe Ollama ou ajoute une clé HuggingFace dans `.env`")
+        st.warning("No LLM configured — search-only mode")
+        st.caption("Add `GROQ_API_KEY` in `.env` or Streamlit secrets (free at console.groq.com)")
     elif backend == "ollama":
         st.success("LLM: Ollama (local)")
+    elif backend == "groq":
+        st.success(f"LLM: Groq ({os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')})")
     else:
-        st.info(f"LLM: HuggingFace API")
+        st.info("LLM: HuggingFace API")
 
     st.divider()
+    n_results = st.slider("Number of sources", min_value=1, max_value=10, value=5)
+    st.info("Type your question and click Search")
 
-    n_results = st.slider("Sources à retourner", min_value=1, max_value=10, value=5)
-    st.info("💡 Tape ta question et clique sur Chercher")
-
-# Zone de recherche
+# Search bar
 col1, col2 = st.columns([2, 1])
 with col1:
     question = st.text_input(
-        "Ta question:",
-        placeholder="Ex: Comment fonctionne l'attention dans les transformers ?",
+        "Your question:",
+        placeholder="e.g. How does the attention mechanism work in transformers?",
         label_visibility="collapsed",
     )
 with col2:
-    search_button = st.button("🔎 Chercher", use_container_width=True)
+    search_button = st.button("Search", use_container_width=True)
 
-# Résultats
+# Results
 if question and search_button:
     if not pipeline.get_status()["indexed"]:
-        st.error("Veuillez d'abord indexer les documents!")
+        st.error("Please index the documents first.")
     else:
-        with st.spinner("Recherche + génération en cours..."):
-            result = pipeline.ask(question, n_results=n_results)
+        with st.spinner("Searching and generating answer..."):
+            try:
+                result = pipeline.ask(question, n_results=n_results)
+            except Exception as e:
+                st.error(f"Error: {e}")
+                st.stop()
 
         answer = result.get("answer")
         sources = result.get("sources", [])
         backend_used = result.get("backend", "none")
 
         if answer:
-            st.subheader("💡 Réponse")
+            st.subheader("Answer")
             st.markdown(
                 f'<div class="answer-box">{answer}</div>',
                 unsafe_allow_html=True,
             )
         elif backend_used == "none":
-            st.info("Aucun LLM configuré — voici les passages les plus pertinents :")
+            st.info("No LLM configured — showing most relevant passages:")
+        else:
+            st.warning(
+                f"Backend `{backend_used}` detected but generation failed. "
+                "Check the terminal logs for details."
+            )
 
         if sources:
-            st.subheader(f"📄 Sources ({len(sources)} passages)")
+            st.subheader(f"Sources ({len(sources)} passages)")
             for i, (doc, similarity, metadata) in enumerate(sources, 1):
                 with st.expander(
-                    f"Résultat {i} — {metadata.get('source', 'Unknown')} "
-                    f"(similarité: {similarity:.2%})"
+                    f"Result {i} — {metadata.get('source', 'Unknown')} "
+                    f"(similarity: {similarity:.2%})"
                 ):
                     st.markdown(doc)
                     st.caption(
@@ -109,44 +129,53 @@ if question and search_button:
                         f"Chunk: {metadata.get('chunk_id', '?')}/{metadata.get('chunk_count', '?')}"
                     )
         else:
-            st.warning("⚠️ Aucun résultat pertinent trouvé")
+            st.warning("No relevant results found.")
 
-# Onglets info
-tab1, tab2 = st.tabs(["À propos", "Statut"])
+# Info tabs
+tab1, tab2 = st.tabs(["About", "Status"])
 
 with tab1:
     st.markdown("""
-    ### À propos
+    ### About
 
-    Ce système **RAG (Retrieval-Augmented Generation)** permet de:
-    - 🔍 Chercher sémantiquement dans plusieurs documents scientifiques/techniques
-    - 💡 Générer une réponse synthétique basée sur les passages trouvés
-    - 📝 Voir exactement d'où vient l'information
+    This **RAG (Retrieval-Augmented Generation)** system lets you:
+    - Search semantically across multiple scientific papers and technical docs
+    - Get AI-generated answers grounded in the document content
+    - See exactly which source each piece of information comes from
 
-    ### Comment ça marche ?
+    ### How it works
 
-    1. **Indexation** : les PDFs sont découpés en chunks et convertis en embeddings
-    2. **Retrieval** : ta question est convertie en embedding et comparée aux chunks
-    3. **Génération** : un LLM synthétise une réponse à partir des passages pertinents
+    1. **Indexing** — PDFs are split into chunks and converted to vector embeddings
+    2. **Retrieval** — your question is embedded and compared to all chunks via FAISS
+    3. **Generation** — an LLM synthesizes an answer from the most relevant passages
 
-    ### Backends LLM supportés
+    ### Supported LLM backends
 
-    - **Ollama** (local) — installer [ollama.ai](https://ollama.ai) puis `ollama pull mistral`
-    - **HuggingFace API** — ajouter `HUGGINGFACE_API_KEY` dans `.env`
-    - **Aucun** — mode recherche seule (chunks retournés sans synthèse)
+    | Backend | How to enable |
+    |---|---|
+    | **Groq** (recommended) | Set `GROQ_API_KEY` — free at [console.groq.com](https://console.groq.com) |
+    | **Ollama** (local) | Install [ollama.ai](https://ollama.ai) then `ollama pull mistral` |
+    | **HuggingFace API** | Set `HUGGINGFACE_API_KEY` (Pro account required for most models) |
+
+    ### Papers included
+    - *Attention Is All You Need* (Vaswani et al., 2017)
+    - *BERT* (Devlin et al., 2018)
+    - *RoBERTa* (Liu et al., 2019)
+    - *Dive into Deep Learning* (textbook)
+    - *Learning TensorFlow* (textbook)
     """)
 
 with tab2:
-    st.subheader("📊 Statut du système")
+    st.subheader("System Status")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Chunks indexés", status["documents_count"])
+        st.metric("Chunks indexed", status["documents_count"])
     with col2:
-        st.metric("État", "Prêt" if status["indexed"] else "À indexer")
+        st.metric("State", "Ready" if status["indexed"] else "Not indexed")
     with col3:
-        st.metric("Modèle embedding", status["embedding_model"].split("/")[-1])
+        st.metric("Embedding model", status["embedding_model"].split("/")[-1])
     with col4:
         st.metric("LLM backend", status.get("generation_backend", "none"))
 
-    with st.expander("🔧 Infos détaillées"):
+    with st.expander("Detailed info"):
         st.json(status)
